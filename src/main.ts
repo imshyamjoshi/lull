@@ -368,13 +368,11 @@ function buildEditor(): void {
   });
 }
 
-function editorFocused(): boolean {
-  const a = document.activeElement;
-  return a instanceof HTMLElement && el.editor.contains(a);
-}
-
 function refreshEditor(): void {
-  if (editorFocused()) return; // don't clobber a field being edited
+  // Only skip while the user is typing in a value field — arrow buttons (also
+  // inside the editor) must still trigger a refresh.
+  const a = document.activeElement;
+  if (a instanceof HTMLInputElement && el.editor.contains(a)) return;
   const { h, m, s } = splitHMS(cfg.focusMs);
   const vals = { h, m, s };
   (Object.keys(editorUnits) as ("h" | "m" | "s")[]).forEach((k) => {
