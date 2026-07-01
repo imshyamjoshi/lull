@@ -1,12 +1,12 @@
-// Boots the rest ("look away") window. Purely presentational: it renders the
-// countdown it is told about and offers a deliberate hold-Esc skip. All timing
-// authority stays in the main window — this window never decides completion.
+// Boots a rest ("look away") window. One of these covers each monitor. Purely
+// presentational: it renders the countdown it is told about and offers a
+// deliberate hold-Esc skip. All timing authority stays in the main window.
 
 import { emit, listen } from "@tauri-apps/api/event";
 import { EVT, TICK_MS, REST_SKIP_HOLD_MS } from "./config.ts";
 import { icons } from "./icons.ts";
 import { byId, setText, toggleClass } from "./dom.ts";
-import { createTicker, formatMMSS, remainingMs } from "./timer.ts";
+import { createTicker, formatClock, remainingMs } from "./timer.ts";
 
 const iconEl = byId("icon");
 const guideEl = byId("guide");
@@ -21,7 +21,7 @@ const LONG_GUIDE = "take a longer break —<br />stretch and look far away";
 let endAt = 0;
 
 const ticker = createTicker(() => {
-  setText(digitsEl, formatMMSS(remainingMs(endAt, Date.now())));
+  setText(digitsEl, formatClock(remainingMs(endAt, Date.now())));
 }, TICK_MS);
 
 interface RestBegin {
@@ -32,18 +32,23 @@ interface RestBegin {
 void listen<RestBegin>(EVT.restBegin, (e) => {
   endAt = e.payload.endAt;
   guideEl.innerHTML = e.payload.isLongRest ? LONG_GUIDE : SHORT_GUIDE;
-  setText(digitsEl, formatMMSS(remainingMs(endAt, Date.now())));
+  setText(digitsEl, formatClock(remainingMs(endAt, Date.now())));
   toggleClass(skipEl, "is-visible", false);
   if (!ticker.running) ticker.start();
 });
 
+// Tell the main window we're loaded so it can (re)send the countdown payload.
+void emit(EVT.restReady);
+
 // ---- hold-Esc to skip ----
 // A quick tap does nothing; holding Esc for ~2s reveals intent and skips.
+// preventDefault stops the WebView's default "Esc exits fullscreen".
 
 let holdTimer: ReturnType<typeof setTimeout> | null = null;
 
 window.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  e.preventDefault();
   toggleClass(skipEl, "is-visible", true);
   if (holdTimer === null) {
     holdTimer = setTimeout(() => {
@@ -55,6 +60,7 @@ window.addEventListener("keydown", (e) => {
 
 window.addEventListener("keyup", (e) => {
   if (e.key !== "Escape") return;
+  e.preventDefault();
   if (holdTimer !== null) {
     clearTimeout(holdTimer);
     holdTimer = null;

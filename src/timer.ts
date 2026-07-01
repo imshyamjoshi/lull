@@ -9,16 +9,37 @@ export function remainingMs(targetEndAt: number, now: number): number {
   return Math.max(0, targetEndAt - now);
 }
 
+export interface HMS {
+  h: number;
+  m: number;
+  s: number;
+}
+
+/** Split ms into whole hours/minutes/seconds (seconds rounded up). */
+export function splitHMS(ms: number): HMS {
+  const total = Math.ceil(Math.max(0, ms) / 1000);
+  return {
+    h: Math.floor(total / 3600),
+    m: Math.floor((total % 3600) / 60),
+    s: total % 60,
+  };
+}
+
+/** Join hours/minutes/seconds back into ms. */
+export function hmsToMs(h: number, m: number, s: number): number {
+  return (h * 3600 + m * 60 + s) * 1000;
+}
+
 /**
- * Format ms as `M:SS` (minutes un-padded, seconds two digits). Seconds are
- * rounded up so a fresh 25-minute block reads "25:00" and only hits "0:00" when
- * truly elapsed.
+ * Format ms for display. Shows `H:MM:SS` when there is at least one hour,
+ * otherwise `M:SS` (minutes un-padded). Seconds are rounded up so a fresh block
+ * reads its full duration and only hits zero when truly elapsed.
  */
-export function formatMMSS(ms: number): string {
-  const totalSeconds = Math.ceil(Math.max(0, ms) / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+export function formatClock(ms: number): string {
+  const { h, m, s } = splitHMS(ms);
+  const ss = String(s).padStart(2, "0");
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${ss}`;
+  return `${m}:${ss}`;
 }
 
 /**

@@ -21,4 +21,6 @@ export const icons = {
     `<path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />` +
       `<path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" />`,
   ),
+  chevronUp: svg(`<path d="M6 15l6 -6l6 6" />`),
+  chevronDown: svg(`<path d="M6 9l6 6l6 -6" />`),
 } as const;

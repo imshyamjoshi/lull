@@ -19,6 +19,69 @@ keep it honest and specific.
 
 ---
 
+## 2026-07-01 — Iteration 2: native redesign + fixes + tray (from user testing)
+
+User tested the first build and directed changes. Several **override the original
+`UX_FLOWS.md`/`AI_RULES.md` design** (pitch-black, hairline, frameless) — logged
+here per AI_RULES; the locked docs were not edited.
+
+**Bugs fixed:**
+- **Reset button was invisible** — its icon was never rendered. Reset is now a
+  labeled Fluent button (icon + "Reset").
+- **Esc resized the fullscreen rest window** — the WebView's default "Esc exits
+  fullscreen" now `preventDefault()`s in `rest.ts`; hold-Esc-2s still skips.
+
+**Design pivot — native Fluent look (user chose "Follow Windows theme"):**
+- Main window now uses **native decorations** (real Windows title bar with
+  min/max/close), is resizable, removed the custom frameless title bar + drag
+  region (and the `start-dragging` permission).
+- `styles.css` rewritten to **follow the system light/dark theme**
+  (`prefers-color-scheme`), Segoe UI Variable, heavier weights (digits 600, was
+  200), Fluent-style buttons/switches, and the **Windows accent color** via the
+  `AccentColor`/`AccentColorText` system-color keywords (with a blue fallback).
+- The rest screen stays **pure black** by design (it's the calm takeaway).
+
+**Feature — editable H:M:S on the home screen (user request):**
+- Durations are now stored in **seconds** (`settings.ts`: `focusSeconds` etc.),
+  supporting hours/minutes/seconds. Home screen shows an editable HH:MM:SS with
+  up/down spinners + typing (idle only); countdown format is hour-aware
+  (`formatClock` → `H:MM:SS` or `M:SS`). Focus duration is edited on home; rest
+  durations moved to minute+second inputs in settings.
+
+**Feature — multi-monitor blackout (user: "it should show on all screens"):**
+- On rest, one fullscreen black rest window is created **per monitor**
+  (`availableMonitors()`), positioned by physical coords, all showing the
+  look-away content and countdown. A `rest-ready` handshake makes freshly-created
+  windows reliably receive the countdown payload. Windows are closed on rest end.
+
+**Feature — system tray + always-on-top (P1, user-selected scope):**
+- `src-tauri/src/tray.rs`: tray icon + menu (Show/Hide, Start/Pause, Quit),
+  left-click shows/focuses main, tooltip shows remaining time (updated from the
+  frontend via a `set_tray_tooltip` command). **Close-to-tray**: the main window
+  hides on close; Quit lives in the tray. Enabled the tauri `tray-icon` feature.
+- **Always-on-top** toggle added to settings, applied live and on boot.
+- Global shortcut + autostart were **not** selected this round (still pending P1).
+
+**Decisions:**
+- Old `*Minutes` settings keys are replaced by `*Seconds`; any previously-stored
+  settings simply fall back to defaults via `normalize` (acceptable pre-release).
+- Rest windows are created/destroyed each cycle (cheap at a ~25-min cadence) so
+  monitor changes are always reflected.
+- Capabilities widened minimally: added `create-webview-window`, `set-position`,
+  `close`; scoped windows to `main` + `rest-*`; every ID re-verified against the ACL.
+
+**Deps:** no new npm deps. Rust: enabled `tauri` feature `tray-icon` (no new crate).
+
+**Verification:** `tsc` clean; 20/20 unit tests; `vite build` clean (main 33 KB /
+8.6 KB gzip); `cargo build` (debug) links. Release installers rebuilt.
+**Still needs a human:** visual check of the Fluent theme (light + dark), the
+multi-monitor blackout on an actual multi-display setup, tray behavior, and the
+H:M:S editor — none observable from this environment.
+
+**Next (still pending P1):** global shortcut + autostart, if wanted.
+
+---
+
 ## 2026-07-01 — Phases 0–6: v1 implemented (P0 complete)
 
 Built the whole P0 app in one session. Frontend is fully green (typecheck, Vite

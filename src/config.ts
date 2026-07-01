@@ -19,4 +19,11 @@ export const EVT = {
   restBegin: "lull://rest-begin",
   // rest -> main: user deliberately skipped the rest (held Esc).
   restSkip: "lull://rest-skip",
+  // rest -> main: a rest window finished loading and is ready for its payload.
+  restReady: "lull://rest-ready",
+  // Rust tray -> main: toggle start/pause from the tray menu.
+  trayToggle: "lull://tray-toggle",
 } as const;
+
+// Label prefix for the per-monitor rest ("look away") windows.
+export const REST_WINDOW_PREFIX = "rest-";

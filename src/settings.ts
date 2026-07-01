@@ -2,36 +2,42 @@
 //
 // FR5: missing or corrupt settings must fall back to defaults without crashing.
 // Every value read from disk is validated and clamped before use.
+//
+// Durations are stored in whole SECONDS so the home-screen editor can set
+// hours/minutes/seconds directly.
 
 import { load, type Store } from "@tauri-apps/plugin-store";
 import { SETTINGS_FILE } from "./config.ts";
 import type { TimerConfig } from "./state.ts";
 
 export interface Settings {
-  focusMinutes: number;
-  shortRestMinutes: number;
-  longRestMinutes: number;
+  focusSeconds: number;
+  shortRestSeconds: number;
+  longRestSeconds: number;
   blocksBeforeLongRest: number;
   autoStart: boolean;
   fullscreenRest: boolean;
   sound: boolean;
   /** Optional native notification at transitions (default off). */
   notify: boolean;
+  /** Keep the timer window above other windows. */
+  alwaysOnTop: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  focusMinutes: 25,
-  shortRestMinutes: 5,
-  longRestMinutes: 15,
+  focusSeconds: 25 * 60,
+  shortRestSeconds: 5 * 60,
+  longRestSeconds: 15 * 60,
   blocksBeforeLongRest: 4,
   autoStart: true,
   fullscreenRest: true,
   sound: true,
   notify: false,
+  alwaysOnTop: false,
 };
 
-const MINUTES_MIN = 1;
-const MINUTES_MAX = 180;
+const SECONDS_MIN = 1;
+const SECONDS_MAX = 24 * 60 * 60; // 24 hours
 const BLOCKS_MIN = 1;
 const BLOCKS_MAX = 12;
 
@@ -52,23 +58,24 @@ export function normalize(raw: unknown): Settings {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const d = DEFAULT_SETTINGS;
   return {
-    focusMinutes: clampInt(o.focusMinutes, MINUTES_MIN, MINUTES_MAX, d.focusMinutes),
-    shortRestMinutes: clampInt(o.shortRestMinutes, MINUTES_MIN, MINUTES_MAX, d.shortRestMinutes),
-    longRestMinutes: clampInt(o.longRestMinutes, MINUTES_MIN, MINUTES_MAX, d.longRestMinutes),
+    focusSeconds: clampInt(o.focusSeconds, SECONDS_MIN, SECONDS_MAX, d.focusSeconds),
+    shortRestSeconds: clampInt(o.shortRestSeconds, SECONDS_MIN, SECONDS_MAX, d.shortRestSeconds),
+    longRestSeconds: clampInt(o.longRestSeconds, SECONDS_MIN, SECONDS_MAX, d.longRestSeconds),
     blocksBeforeLongRest: clampInt(o.blocksBeforeLongRest, BLOCKS_MIN, BLOCKS_MAX, d.blocksBeforeLongRest),
     autoStart: asBool(o.autoStart, d.autoStart),
     fullscreenRest: asBool(o.fullscreenRest, d.fullscreenRest),
     sound: asBool(o.sound, d.sound),
     notify: asBool(o.notify, d.notify),
+    alwaysOnTop: asBool(o.alwaysOnTop, d.alwaysOnTop),
   };
 }
 
-/** Convert user-facing minutes into the ms-based config the reducer uses. */
+/** Convert user-facing seconds into the ms-based config the reducer uses. */
 export function toTimerConfig(s: Settings): TimerConfig {
   return {
-    focusMs: s.focusMinutes * 60_000,
-    shortRestMs: s.shortRestMinutes * 60_000,
-    longRestMs: s.longRestMinutes * 60_000,
+    focusMs: s.focusSeconds * 1000,
+    shortRestMs: s.shortRestSeconds * 1000,
+    longRestMs: s.longRestSeconds * 1000,
     blocksBeforeLongRest: s.blocksBeforeLongRest,
     autoStart: s.autoStart,
   };
