@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lull</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="titlebar" data-tauri-drag-region>
+        <span class="titlebar__dot" data-tauri-drag-region></span>
+        <span class="titlebar__label" id="appLabel" data-tauri-drag-region>lull</span>
+        <button class="titlebar__gear" id="gear" type="button" aria-label="Settings"></button>
+      </header>
+
+      <main class="stage">
+        <div class="readout">
+          <div class="phase" id="phase">focus</div>
+          <div class="digits" id="digits" role="timer" aria-live="off">25:00</div>
+        </div>
+
+        <div class="controls">
+          <button class="ctrl" id="primary" type="button" aria-label="Start"></button>
+          <button class="ctrl" id="reset" type="button" aria-label="Reset"></button>
+        </div>
+
+        <div class="dots" id="dots" aria-hidden="true"></div>
+      </main>
+    </div>
+
+    <section class="settings" id="settings" hidden aria-label="Settings">
+      <div class="settings__head">
+        <span class="settings__title">settings</span>
+        <button class="settings__close" id="settingsClose" type="button" aria-label="Close settings">&times;</button>
+      </div>
+      <div class="settings__list" id="settingsList"></div>
+      <button class="settings__reset" id="resetDefaults" type="button">reset to defaults</button>
+    </section>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

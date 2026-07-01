@@ -1,0 +1,372 @@
+/* Lull — design tokens and both screens. Pitch black everywhere. */
+
+:root {
+  --bg: #000000;
+  --text: #f4f4f2;
+  --text-muted: rgba(255, 255, 255, 0.45);
+  --text-faint: rgba(255, 255, 255, 0.18);
+  --accent: #78c8aa;
+  --hairline: rgba(255, 255, 255, 0.08);
+
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* ---- shared phase label + digits ---- */
+
+.phase {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  color: var(--text-muted);
+  transition: color 180ms ease;
+}
+.phase.is-active {
+  color: var(--accent);
+}
+
+.digits {
+  font-size: 62px;
+  font-weight: 200;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  color: var(--text);
+}
+
+/* =====================================================================
+   Screen 1 — Focus timer (index.html)
+   ===================================================================== */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.titlebar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  flex: 0 0 auto;
+}
+.titlebar__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  justify-self: start;
+}
+.titlebar__label {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: lowercase;
+  color: var(--text-muted);
+  justify-self: center;
+}
+.titlebar__gear {
+  justify-self: end;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  font-size: 17px;
+  color: var(--text-muted);
+  border-radius: 50%;
+  transition: color 160ms ease;
+}
+.titlebar__gear:hover,
+.titlebar__gear:focus-visible {
+  color: var(--text);
+  outline: none;
+}
+
+.stage {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  padding-bottom: 8px;
+}
+
+.readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.controls {
+  display: flex;
+  gap: 22px;
+}
+.ctrl {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  font-size: 22px;
+  color: var(--text);
+  border: 0.5px solid var(--hairline);
+  border-radius: 50%;
+  transition: border-color 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+.ctrl:hover:not(:disabled),
+.ctrl:focus-visible:not(:disabled) {
+  border-color: var(--text-muted);
+  outline: none;
+}
+.ctrl:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.dots {
+  display: flex;
+  gap: 10px;
+  height: 8px;
+  align-items: center;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: background-color 220ms ease;
+}
+.dot.is-done {
+  background: var(--accent);
+}
+
+/* ---- settings panel (overlay inside the main window) ---- */
+
+.settings {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  padding: 14px 18px 18px;
+  gap: 4px;
+  z-index: 10;
+}
+.settings[hidden] {
+  display: none;
+}
+.settings__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.settings__title {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: lowercase;
+  color: var(--text-muted);
+}
+.settings__close {
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-muted);
+  padding: 4px;
+}
+.settings__close:hover,
+.settings__close:focus-visible {
+  color: var(--text);
+  outline: none;
+}
+.settings__list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 0.5px solid var(--hairline);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.field label {
+  cursor: default;
+}
+.field input[type="number"] {
+  width: 58px;
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: transparent;
+  border: 0.5px solid var(--hairline);
+  border-radius: 6px;
+  text-align: right;
+}
+.field input[type="number"]:focus-visible {
+  border-color: var(--text-muted);
+  outline: none;
+}
+
+/* minimal toggle */
+.toggle {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  border: 0.5px solid var(--hairline);
+  background: transparent;
+  transition: border-color 160ms ease, background-color 160ms ease;
+  flex: 0 0 auto;
+}
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transform: translateY(-50%);
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+.toggle[aria-checked="true"] {
+  border-color: var(--accent);
+}
+.toggle[aria-checked="true"]::after {
+  transform: translate(16px, -50%);
+  background: var(--accent);
+}
+.toggle:focus-visible {
+  outline: none;
+  border-color: var(--text);
+}
+
+.settings__reset {
+  margin-top: 12px;
+  align-self: center;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  color: var(--text-faint);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.settings__reset:hover,
+.settings__reset:focus-visible {
+  color: var(--text-muted);
+  outline: none;
+}
+
+/* =====================================================================
+   Screen 2 — Rest / "look away" (rest.html)
+   ===================================================================== */
+
+.rest {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: #000000;
+  text-align: center;
+  padding: 40px;
+}
+.rest__icon {
+  font-size: 38px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+.rest__title {
+  font-size: 26px;
+  font-weight: 200;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.rest__guide {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-muted);
+  max-width: 22em;
+}
+.rest__digits {
+  margin-top: 8px;
+  font-size: 54px;
+  font-weight: 200;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.7);
+}
+.rest__skip {
+  margin-top: 6px;
+  height: 14px;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: lowercase;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.rest__skip.is-visible {
+  opacity: 1;
+}
+
+/* =====================================================================
+   Motion — a quiet crossfade; instant for reduced-motion users.
+   ===================================================================== */
+
+.fade-in {
+  animation: fade 200ms ease both;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
