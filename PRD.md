@@ -1,9 +1,9 @@
-# PRD.md — Lull
+# PRD.md — Blink
 
 ## Problem
 
 Focus timers keep you working, but they do nothing for your eyes. Staring at a
-screen for hours causes eye strain and fatigue. Lull ties every break to a
+screen for hours causes eye strain and fatigue. Blink ties every break to a
 deliberate, hard-to-ignore eye rest: when a focus block ends, the screen goes
 pure black and tells you to look away from the screen for a few minutes.
 
@@ -58,22 +58,28 @@ IDLE ──▶ FOCUS (25:00) ──▶ REST (5:00, black "look away") ──▶ 
 - **Pure-black UI** on both screens with a single teal accent and thin digits, exactly
   as specified in `UX_FLOWS.md`.
 
-### P1 — soon after v1
+### P1 — soon after v1 (all shipped)
 
 - **System tray**: icon in the notification area; menu with Show/Hide, Start/Pause,
-  Quit; tray tooltip shows remaining time.
-- **Global shortcut** to start/pause from any app (default `Ctrl+Shift+Space`, configurable).
-- **Autostart on login** (toggle in settings, off by default).
-- **Always-on-top** toggle for the timer window.
-- **Native notification** at transitions (optional, alongside or instead of the chime).
-- **Minimal daily stat**: number of focus blocks completed today (local only).
+  Quit; tray tooltip shows remaining time. ✅
+- **Global shortcut** to start/pause from any app (`Ctrl+Shift+Space`). ✅
+  On/off toggle in Settings (default on); the combo itself is fixed for now,
+  not yet user-remappable — see `HANDOFF.md`.
+- **Autostart on login** ("Launch on login" toggle in Settings, off by default). ✅
+- **Always-on-top** toggle for the timer window. ✅
+- **Native notification** at transitions (optional, alongside or instead of the chime). ✅
+- **Minimal daily stat**: number of focus blocks completed today, plus a day streak
+  (local only, `src/stats.ts`). ✅
 
 ### P2 — future / nice to have
 
-- Optional 20-20-20 micro-breaks (every 20 min, look 20 ft away for 20 s) layered on top.
+- Optional 20-20-20 micro-breaks (every 20 min, look ~20 ft away for 20 s) layered
+  on top, pausing/extending the current focus block. ✅ Off by default.
+- Optional guided breathing circle on the rest screen (off by default; a scoped,
+  documented exception to the "no rest-screen animation" rule — see `AI_RULES.md`). ✅
+- Multi-monitor takeover (black out every display during rest). ✅
 - Optional per-block task label.
 - A couple of chime sounds to choose from.
-- Multi-monitor takeover (black out every display during rest — see `ARCHITECTURE.md`).
 
 ## Functional requirements
 
@@ -100,8 +106,12 @@ IDLE ──▶ FOCUS (25:00) ──▶ REST (5:00, black "look away") ──▶ 
 | Auto-start next block       | on      |
 | Rest screen fullscreen      | on      |
 | Sound / chime               | on      |
-| Autostart on login (P1)     | off     |
-| Global shortcut (P1)        | Ctrl+Shift+Space |
+| Notify at transitions       | off     |
+| Always on top                | off    |
+| Launch on login (P1)        | off     |
+| Global shortcut (P1)        | on, Ctrl+Shift+Space (fixed combo) |
+| 20-20-20 micro-breaks (P2)  | off     |
+| Breathing circle on rest (P2) | off   |
 
 ## Success criteria
 

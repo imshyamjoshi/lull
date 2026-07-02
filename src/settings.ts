@@ -10,6 +10,16 @@ import { load, type Store } from "@tauri-apps/plugin-store";
 import { SETTINGS_FILE } from "./config.ts";
 import type { TimerConfig } from "./state.ts";
 
+/** A named focus/rest cycle, either built-in (see main.ts) or user-saved. */
+export interface Preset {
+  id: string;
+  label: string;
+  focusSeconds: number;
+  shortRestSeconds: number;
+  longRestSeconds: number;
+  blocksBeforeLongRest: number;
+}
+
 export interface Settings {
   focusSeconds: number;
   shortRestSeconds: number;
@@ -22,6 +32,16 @@ export interface Settings {
   notify: boolean;
   /** Keep the timer window above other windows. */
   alwaysOnTop: boolean;
+  /** Launch the app on Windows login (OS autostart, distinct from `autoStart`). */
+  launchOnLogin: boolean;
+  /** Ctrl+Shift+Space toggles start/pause from any app. */
+  globalShortcutEnabled: boolean;
+  /** Every ~20 min of focus, a brief fullscreen "look 20ft away" prompt. */
+  microBreaksEnabled: boolean;
+  /** Slow, non-pulsing breathing circle on the rest screen (off by default). */
+  breathingCircleEnabled: boolean;
+  /** User-saved cycle presets, shown as chips alongside the built-in ones. */
+  customPresets: Preset[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -34,7 +54,15 @@ export const DEFAULT_SETTINGS: Settings = {
   sound: true,
   notify: false,
   alwaysOnTop: false,
+  launchOnLogin: false,
+  globalShortcutEnabled: true,
+  microBreaksEnabled: false,
+  breathingCircleEnabled: false,
+  customPresets: [],
 };
+
+const MAX_CUSTOM_PRESETS = 20;
+const PRESET_LABEL_MAX = 24;
 
 const SECONDS_MIN = 1;
 const SECONDS_MAX = 24 * 60 * 60; // 24 hours
@@ -53,6 +81,35 @@ function asBool(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+/** Coerce one arbitrary (possibly corrupt) preset; drops it entirely if unusable. */
+function asPreset(raw: unknown): Preset | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const id = typeof o.id === "string" && o.id ? o.id : null;
+  const label = typeof o.label === "string" ? o.label.trim().slice(0, PRESET_LABEL_MAX) : "";
+  if (!id || !label) return null;
+  const d = DEFAULT_SETTINGS;
+  return {
+    id,
+    label,
+    focusSeconds: clampInt(o.focusSeconds, SECONDS_MIN, SECONDS_MAX, d.focusSeconds),
+    shortRestSeconds: clampInt(o.shortRestSeconds, SECONDS_MIN, SECONDS_MAX, d.shortRestSeconds),
+    longRestSeconds: clampInt(o.longRestSeconds, SECONDS_MIN, SECONDS_MAX, d.longRestSeconds),
+    blocksBeforeLongRest: clampInt(o.blocksBeforeLongRest, BLOCKS_MIN, BLOCKS_MAX, d.blocksBeforeLongRest),
+  };
+}
+
+function asPresetArray(value: unknown): Preset[] {
+  if (!Array.isArray(value)) return [];
+  const out: Preset[] = [];
+  for (const item of value) {
+    const p = asPreset(item);
+    if (p) out.push(p);
+    if (out.length >= MAX_CUSTOM_PRESETS) break;
+  }
+  return out;
+}
+
 /** Coerce an arbitrary (possibly corrupt) object into valid Settings. */
 export function normalize(raw: unknown): Settings {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -67,6 +124,11 @@ export function normalize(raw: unknown): Settings {
     sound: asBool(o.sound, d.sound),
     notify: asBool(o.notify, d.notify),
     alwaysOnTop: asBool(o.alwaysOnTop, d.alwaysOnTop),
+    launchOnLogin: asBool(o.launchOnLogin, d.launchOnLogin),
+    globalShortcutEnabled: asBool(o.globalShortcutEnabled, d.globalShortcutEnabled),
+    microBreaksEnabled: asBool(o.microBreaksEnabled, d.microBreaksEnabled),
+    breathingCircleEnabled: asBool(o.breathingCircleEnabled, d.breathingCircleEnabled),
+    customPresets: asPresetArray(o.customPresets),
   };
 }
 

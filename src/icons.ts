@@ -23,4 +23,6 @@ export const icons = {
   ),
   chevronUp: svg(`<path d="M6 15l6 -6l6 6" />`),
   chevronDown: svg(`<path d="M6 9l6 6l6 -6" />`),
+  check: svg(`<path d="M5 12l5 5l10 -10" />`),
+  x: svg(`<path d="M18 6l-12 12" /><path d="M6 6l12 12" />`),
 } as const;

@@ -1,4 +1,4 @@
-# DEVLOG.md — Lull
+# DEVLOG.md — Blink (formerly "Lull")
 
 A running log of what was built and why. **Append an entry after every phase** (and
 after any notable decision). Newest entries at the top. This is the project's memory —
@@ -16,6 +16,164 @@ keep it honest and specific.
 **Parking lot:** ideas noticed but deliberately not built.
 **Next:** the next phase to pick up.
 ```
+
+---
+
+## 2026-07-02 — Custom presets, app icon, GitHub repo rename (follow-ups)
+
+**Done:**
+- **Save-current-as-preset**: `settings.customPresets: Preset[]` (default `[]`,
+  capped at 20, each entry corrupt-safe validated like every other setting).
+  Home screen now shows built-in chips + saved custom chips (with a small
+  hover/focus-revealed × to delete) + a "+ Save preset" chip that opens an
+  inline name field (Enter to save, Esc to cancel). `Preset` moved to
+  `settings.ts` (was previously a `main.ts`-local type) so both the schema and
+  the UI share one definition.
+- **App icon replaced.** The shipped icon was the unmodified default Tauri
+  scaffold logo (yellow/teal rings) — confirmed with the user it wasn't
+  intentional. New icon: the same eye glyph already used in-app
+  (`src/icons.ts`'s `eye`, seen on the rest screen), teal `#78C8AA` on black,
+  regenerated at every required size via `npm run tauri icon
+  src-tauri/icon-source.svg` (source SVG kept in the repo for future
+  re-branding). Deleted the `android/`/`ios/` icon sets the generator also
+  produces — this is a Windows-only v1 app, no mobile targets.
+- **GitHub repo renamed** `lull` → `blink` via `gh repo rename`; local `origin`
+  remote was updated automatically. GitHub keeps the old URL as a redirect.
+
+**Verification:** `tsc --noEmit` clean, 40/40 tests pass, full `npm run tauri
+build` succeeded with the new icon and presets code — MSI 3.26 MB / NSIS
+2.14 MB, still well under the `COST.md` budget.
+
+**Next:** still owed — human click-through of preset save/delete, and a visual
+check that the new icon looks right in the taskbar/tray/title bar at real
+DPI (only inspected via generated PNG files here, not a running window).
+
+---
+
+## 2026-07-02 — Global shortcut on/off toggle (follow-up)
+
+**Done:** the global shortcut (`Ctrl+Shift+Space`) was always registered at
+launch with no way to turn it off. Added `settings.globalShortcutEnabled`
+(default **on**, preserving prior behavior) and a matching Settings toggle.
+Moved shortcut registration out of Rust `.setup()` (which runs before the
+frontend has loaded settings) into a new `set_global_shortcut_enabled(app,
+enabled)` command, invoked from `src/main.ts` once at boot and again whenever
+the toggle changes — same pattern as `applyAlwaysOnTop`/`applyLaunchOnLogin`.
+The command checks `is_registered()` first so it's idempotent either way.
+
+**Verification:** `tsc --noEmit` clean, 40/40 tests still pass (no reducer/pure-module
+logic touched), `cargo check` clean.
+
+**Next:** still owed — human verification that the toggle actually
+registers/unregisters live (see `HANDOFF.md`).
+
+---
+
+## 2026-07-02 — Rename to Blink; home restructure; P1 finished; 3 new P2 features
+
+User picked the app's final name and greenlit the full pending backlog from
+`HANDOFF.md` in one session: rename, the home/settings restructure, and all four
+candidate features (global shortcut + autostart, 20-20-20 micro-breaks, daily
+stats/streak, guided breathing circle).
+
+**Done:**
+- **Renamed Lull → Blink** everywhere: `APP_NAME` (`src/config.ts`), window/event
+  channel names (`blink://...`), `tauri.conf.json` (`productName`, `identifier`
+  `com.shawn.blink` — settings storage path changes, acceptable pre-release),
+  `Cargo.toml` (`package.name`, `lib.name` → `blink_lib`), `main.rs`, `tray.rs`
+  tooltip + event, `package.json`, and the doc titles/prose in every `.md` file
+  except historical `DEVLOG.md` entries (left as-is; this file's own header
+  updated for clarity).
+- **Home screen restructure**: preset chips (Classic 25/5/15/4, Deep Work
+  50/10/20/3, Short 15/3/15/4, auto-highlighted "Custom"), plus a compact
+  short-rest/long-rest/blocks-before-long-rest row, both idle-only
+  (`index.html`, `src/main.ts`: `buildPresets`/`renderPresets`,
+  `buildRestConfig`/`refreshRestConfig`). `buildSettingsForm` trimmed to
+  behavior toggles only, per the agreed scope.
+- **Global shortcut + autostart (P1, closes BUILD_PLAN Phase 8)**:
+  `tauri-plugin-global-shortcut` registers a fixed `Ctrl+Shift+Space` → toggle
+  start/pause, with registration failure (combo already taken) caught and
+  logged rather than crashing the app (`src-tauri/src/lib.rs`).
+  `tauri-plugin-autostart` backs a new "Launch on login" Settings toggle
+  (`settings.launchOnLogin` — deliberately *not* named `autoStart`, which
+  already means "auto-start next block"; flagged by the explore agent before
+  writing any code).
+- **20-20-20 micro-breaks** (`src/microbreak.ts` + wiring in `src/main.ts`): a
+  pure, timestamp-driven sub-timer layered on a running focus block, tested the
+  same way as `state.ts` (`src/microbreak.test.ts`, 12 cases). Every 20 real
+  focus-minutes, dispatches the existing `PAUSE` event, shows a brief fullscreen
+  "look ~20 ft away" prompt (reusing the rest-window infrastructure with an
+  `isMicroBreak` payload flag), then auto-`RESUME`s — so it **pauses and
+  extends** the block rather than eating into it. A manual resume (button,
+  tray, or the hotkey) or a `RESET` ends a micro-break early and cleans up the
+  window; deliberately kept out of `state.ts` so the core reducer stays pure.
+- **Daily stats + streak** (`src/stats.ts`, 8 tests): local-only focus-block
+  count and day streak, persisted in its own `stats.json` (same
+  load/normalize/save shape as `settings.ts`, corrupt-safe per FR5). Recorded
+  once per completed focus block (the `enteringRest` transition, which only
+  ever follows `FOCUS_COMPLETE`). Rendered as a small muted line under the
+  session dots. Note: "today" only rolls over on the next completed block, not
+  at the stroke of midnight while idle — accepted as the smallest reasonable
+  behavior for a v1 of this feature.
+- **Guided breathing circle** (opt-in, off by default): a faint, ~8s
+  radial-glow pulse behind the rest-screen content, driven by a
+  `breathingCircleEnabled` payload flag on `EVT.restBegin`. Never appears
+  during micro-breaks (too short to read as calm) and is fully removed (not
+  merely frozen) under `prefers-reduced-motion: reduce`. This **conflicts with
+  the existing `AI_RULES.md` rule** "no animation beyond a quick fade" on the
+  rest screen — flagged to the user before building; they approved a scoped,
+  documented exception rather than dropping the feature. `AI_RULES.md` and
+  `UX_FLOWS.md` amended accordingly.
+- Docs synced to match: `BUILD_PLAN.md` (Phases 7–9 checked off),
+  `PRD.md` (P1 marked shipped, P2 additions, defaults table), `UX_FLOWS.md`
+  (home-screen addendum, rest-screen additions, trimmed Settings field list),
+  `README.md`, `CLAUDE.md`.
+
+**Decisions:**
+- Micro-breaks reuse the `PAUSE`/`RESUME` reducer events instead of adding new
+  `state.ts` transitions — "pause and extend" comes for free from already-tested
+  drift-free pause/resume logic, and the reducer stays pure (user's explicit
+  choice over a concurrent/non-blocking alternative).
+- Micro-breaks reuse the fullscreen multi-monitor rest-window plumbing rather
+  than a lighter on-window banner (user's explicit choice, matching the app's
+  "forces your eyes to rest" ethos).
+- The global shortcut is fixed at `Ctrl+Shift+Space`, not yet user-remappable,
+  even though `PRD.md` originally said "configurable" — smallest reasonable
+  slice for this pass; a rebind UI is parked below.
+
+**Assumptions:**
+- Stats "today" resets lazily (see above) rather than on a background
+  midnight timer — no existing pattern in the codebase for scheduled
+  background work, and adding one felt like scope creep for a P1/P2 stat.
+- Preset "Custom" chip is a non-interactive indicator (disabled button), not a
+  fourth clickable option — there's nothing to select for "whatever the
+  current values already are."
+
+**Deps added:**
+- crates: `tauri-plugin-global-shortcut = "2"`, `tauri-plugin-autostart = "2"`
+  (both official Tauri plugins, per `ARCHITECTURE.md`).
+- npm: `@tauri-apps/plugin-autostart@^2` (global-shortcut is Rust-side only —
+  the frontend just listens for the emitted toggle event, so no JS package
+  needed for it, keeping the capability surface smaller).
+- `capabilities/default.json`: added `autostart:allow-enable/-disable/-is-enabled`.
+
+**Verification:**
+- `tsc --noEmit` clean; `node --test` → **40/40 pass** (12 new `microbreak.test.ts`,
+  8 new `stats.test.ts`, all prior tests unchanged and still green).
+- `cargo check` clean with both new plugins linked.
+- **Not yet done:** `npm run tauri build` / installer size check, and all GUI
+  verification (presets highlighting, rest-config row, hotkey from another app,
+  autostart actually toggling the Windows registry entry, micro-break overlay
+  timing, breathing circle motion + reduced-motion behavior) — this environment
+  still can't observe a running window. See `HANDOFF.md`.
+
+**Parking lot:** user-remappable global shortcut; per-block task label;
+selectable chime sounds; a real midnight-boundary refresh for the stats line
+while idle.
+
+**Next:** human `npm run tauri dev` smoke test of everything in this entry, then
+`npm run tauri build` to confirm installer size/name; after that, P2 leftovers
+(task label, chime picker) or a shortcut-rebind UI, user's call.
 
 ---
 

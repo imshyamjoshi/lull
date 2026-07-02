@@ -1,12 +1,12 @@
 # CLAUDE.md — read this first
 
-You are building **Lull**: a minimal, pitch-black Pomodoro timer for Windows that
+You are building **Blink**: a minimal, pitch-black Pomodoro timer for Windows that
 forces your eyes to rest between focus blocks. When a focus block ends, the app
 takes over the screen with a pure-black "look away" rest screen and a countdown,
 then returns to the next focus block.
 
-> "Lull" is a placeholder name. It is safe to rename later — keep the name in one
-> constant/config value so a rename is a one-line change.
+> The app name is centralized in `APP_NAME` (`src/config.ts`) and `productName`
+> (`src-tauri/tauri.conf.json`) so a future rename stays a one-line-ish change.
 
 ## Read order
 
@@ -34,8 +34,8 @@ exception and a `DEVLOG.md` entry.
 
 ```bash
 # prerequisites: Rust (rustup, stable), Node.js 20 LTS+, VS Code
-npm create tauri-app@latest lull -- --template vanilla-ts
-cd lull
+npm create tauri-app@latest blink -- --template vanilla-ts
+cd blink
 npm install
 npm run tauri dev      # run in dev
 npm run tauri build    # produce MSI + NSIS installer in src-tauri/target/release/bundle

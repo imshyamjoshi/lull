@@ -1,4 +1,4 @@
-/* Lull — Fluent-flavored native Windows styling that follows the system theme.
+/* Blink — Fluent-flavored native Windows styling that follows the system theme.
    The rest ("look away") screen stays pure black on purpose. */
 
 :root {
@@ -293,6 +293,159 @@ button {
   background: var(--accent);
 }
 
+/* ---- preset chips (idle only) ---- */
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.presets[hidden] {
+  display: none;
+}
+.chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--control-bg);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.chip:hover:not(:disabled) {
+  background: var(--control-bg-hover);
+  color: var(--text);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.chip.is-active {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-text);
+}
+.chip-custom {
+  cursor: default;
+}
+.chip-custom:disabled {
+  opacity: 1;
+}
+.chip-add {
+  border-style: dashed;
+  color: var(--text-faint);
+}
+
+/* ---- user-saved preset chips (deletable) ---- */
+.chip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.chip-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--control-bg-hover);
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+.chip-remove svg {
+  width: 9px;
+  height: 9px;
+}
+.chip-wrap:hover .chip-remove,
+.chip-wrap:focus-within .chip-remove {
+  opacity: 1;
+}
+.chip-remove:hover {
+  background: var(--control-bg);
+  color: var(--text);
+}
+.chip-remove:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---- inline "save current as preset" form ---- */
+.preset-add-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.preset-add-form input[type="text"] {
+  width: 110px;
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  text-align: center;
+}
+.preset-add-form input[type="text"]:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+.preset-add-form .icon-btn {
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+}
+
+/* ---- home-screen rest configuration (idle only) ---- */
+.rest-config {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+}
+.rest-config[hidden] {
+  display: none;
+}
+.rc-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.rc-field label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  text-align: center;
+}
+.rc-field input[type="number"] {
+  width: 52px;
+  padding: 5px 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  text-align: center;
+}
+.rc-field input[type="number"]:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ---- daily stats readout ---- */
+.stats {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
 /* =====================================================================
    Settings (overlay inside the main window)
    ===================================================================== */
@@ -414,6 +567,8 @@ button {
    Rest / "look away" window — always pure black
    ===================================================================== */
 .rest {
+  position: relative;
+  z-index: 0;
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -424,6 +579,42 @@ button {
   color: #f4f4f2;
   text-align: center;
   padding: 40px;
+}
+/* Opt-in guided breathing circle (off by default — see AI_RULES.md). A calm,
+   non-pulsing glow behind the content; never uses the accent color. */
+.rest__breath {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -1;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 70%);
+  transform: translate(-50%, -50%) scale(0.85);
+  pointer-events: none;
+}
+.rest__breath[hidden] {
+  display: none;
+}
+.rest__breath.is-breathing {
+  animation: breathe 8s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.85);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rest__breath {
+    display: none;
+  }
 }
 .rest__icon {
   font-size: 40px;

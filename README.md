@@ -1,19 +1,16 @@
-# Lull
+# Blink
 
 A minimal, pitch-black Pomodoro timer for Windows that forces your eyes to rest
-between focus blocks. When a focus block ends, Lull takes over the screen with a
+between focus blocks. When a focus block ends, Blink takes over the screen with a
 pure-black "look away" rest screen and a countdown, then returns to the next block.
 
 Offline, private, and free to run — no accounts, no telemetry, no network calls.
-
-> "Lull" is a placeholder name, centralized in `APP_NAME` (`src/config.ts`) and
-> `productName` (`src-tauri/tauri.conf.json`) for an easy rename.
 
 ## Stack
 
 - **Tauri v2** (Rust) — tiny native Windows binary, WebView2 runtime.
 - **Vanilla TypeScript + Vite** — no UI framework.
-- Rust only for windowing, single-instance, persistence, and notifications.
+- Rust only for windowing, tray, global shortcut, autostart, persistence, and notifications.
 
 ## Develop
 
@@ -40,6 +37,7 @@ src/
   config.ts   state.ts   # constants; pure state machine
   timer.ts               # timestamp-driven countdown engine
   settings.ts            # load/save via the store plugin (+ defaults, validation)
+  stats.ts               # daily focus count + streak, persisted separately
   audio.ts   icons.ts    # Web Audio chime; inline SVG icons
   dom.ts                 # tiny DOM helpers
   main.ts   rest.ts      # boot the timer window / rest window
@@ -56,4 +54,6 @@ src-tauri/               # Rust: plugins, windows, capabilities
 
 v1 (P0, phases 0–6) is implemented: focus/rest loop, fullscreen rest takeover,
 session cycle with long rests, persisted settings, and a transition chime.
-System tray, global shortcut, and autostart (P1) are not built yet.
+Iteration 2 added the native Fluent redesign, home-screen presets, system tray,
+global shortcut, autostart, 20-20-20 micro-breaks, daily stats/streak, and an
+opt-in guided breathing circle. See `DEVLOG.md` for details.

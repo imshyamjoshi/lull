@@ -8,6 +8,7 @@ import { icons } from "./icons.ts";
 import { byId, setText, toggleClass } from "./dom.ts";
 import { createTicker, formatClock, remainingMs } from "./timer.ts";
 
+const breathEl = byId("breath");
 const iconEl = byId("icon");
 const guideEl = byId("guide");
 const digitsEl = byId("digits");
@@ -17,6 +18,7 @@ iconEl.innerHTML = icons.eye;
 
 const SHORT_GUIDE = "rest your eyes on something<br />far away for a moment";
 const LONG_GUIDE = "take a longer break —<br />stretch and look far away";
+const MICRO_GUIDE = "the 20-20-20 rule —<br />look about 20 feet away";
 
 let endAt = 0;
 
@@ -27,13 +29,19 @@ const ticker = createTicker(() => {
 interface RestBegin {
   isLongRest: boolean;
   endAt: number;
+  isMicroBreak?: boolean;
+  breathingCircleEnabled?: boolean;
 }
 
 void listen<RestBegin>(EVT.restBegin, (e) => {
   endAt = e.payload.endAt;
-  guideEl.innerHTML = e.payload.isLongRest ? LONG_GUIDE : SHORT_GUIDE;
+  guideEl.innerHTML = e.payload.isMicroBreak ? MICRO_GUIDE : e.payload.isLongRest ? LONG_GUIDE : SHORT_GUIDE;
   setText(digitsEl, formatClock(remainingMs(endAt, Date.now())));
   toggleClass(skipEl, "is-visible", false);
+  // Kept off during micro-breaks: too short for a slow breathing cycle to read as calm.
+  const showBreath = !e.payload.isMicroBreak && !!e.payload.breathingCircleEnabled;
+  breathEl.hidden = !showBreath;
+  toggleClass(breathEl, "is-breathing", showBreath);
   if (!ticker.running) ticker.start();
 });
 

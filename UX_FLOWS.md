@@ -82,6 +82,13 @@ show the configured focus duration (e.g. `25:00`).
 - Copy stays gentle and non-clinical ("rest your eyes", never medical claims).
 - Long rest: identical screen, longer countdown; guidance line may read "take a longer
   break — stretch and look far away."
+- 20-20-20 micro-break: same screen, ~20s countdown, guidance reads "the 20-20-20
+  rule — look about 20 feet away." Only appears when enabled in Settings.
+- **Optional guided breathing circle** (Settings, off by default): a very faint,
+  slow-pulsing radial glow centered behind the icon/text, ~8s per breath cycle,
+  never uses the accent color. Fully removed (not just paused) under
+  `prefers-reduced-motion: reduce`, and never shown during a micro-break. See the
+  scoped exception noted in `AI_RULES.md`.
 
 ### Dismissing the rest screen (important)
 
@@ -91,19 +98,34 @@ The rest must be hard to *accidentally* skip, but not a trap:
   fires `SKIP_REST` and returns to focus. A quick tap does nothing.
 - When the countdown reaches 0 it auto-dismisses and moves on.
 
+## Screen 1 addendum — home-screen timer config (iteration 2)
+
+Focus/short-rest/long-rest durations and blocks-before-long-rest now live on the
+home screen (idle only), not in Settings:
+- **Preset chips**: Classic 25/5/15/4, Deep Work 50/10/20/3, Short 15/3/15/4,
+  Custom (auto-highlighted when the current values match no preset).
+- The big H:M:S editor sets focus duration directly, as before.
+- A compact row under the controls sets short rest / long rest (minutes) and
+  blocks-before-long-rest.
+- A small muted line under the session dots shows today's focus-block count and
+  the current day streak (local only, resets lazily at the next completed block
+  after midnight).
+
 ## Screen 3 — Settings (panel or small window)
 
-Reachable from the gear. Keep it flat and minimal (same black, same type). Fields:
+Reachable from the gear. Keep it flat and minimal (same black, same type).
+Behavior toggles only — timer/cycle config lives on the home screen (above):
 
-- Focus duration (minutes)
-- Short rest (minutes)
-- Long rest (minutes)
-- Focus blocks before a long rest (number, default 4)
 - Auto-start next block (toggle)
 - Rest screen fullscreen (toggle)
 - Sound / chime (toggle)
-- P1: Autostart on login (toggle)
-- P1: Global shortcut (capture field)
+- Notify at transitions (toggle)
+- Always on top (toggle)
+- Launch on login (toggle, off by default)
+- Global shortcut / Ctrl+Shift+Space (toggle, on by default)
+- 20-20-20 micro-breaks (toggle, off by default)
+- Breathing circle on rest (toggle, off by default)
+- Reset to defaults
 - P1: Always-on-top (toggle)
 
 Changes save immediately (persisted). A "reset to defaults" link at the bottom.

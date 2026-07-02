@@ -1,4 +1,4 @@
-# BUILD_PLAN.md — Lull
+# BUILD_PLAN.md — Blink
 
 Execute phases in order. Finish a phase's acceptance criteria before starting the
 next. Append a `DEVLOG.md` entry when each phase is done. P0 = phases 0–6 (v1 ships
@@ -8,14 +8,14 @@ at the end of phase 6). P1/P2 = phases 7+.
 
 ## Phase 0 — Scaffold
 
-- [ ] `npm create tauri-app@latest lull -- --template vanilla-ts`.
+- [ ] `npm create tauri-app@latest blink -- --template vanilla-ts`.
 - [ ] App builds and runs an empty window (`npm run tauri dev`).
 - [ ] Set app name, identifier, version, icon in `tauri.conf.json`.
 - [ ] Add `tauri-plugin-single-instance`.
 - [ ] Commit the 8 planning docs into the repo root.
 - [ ] Confirm `npm run tauri build` produces an MSI/NSIS installer.
 
-**Acceptance:** a blank Lull window launches in dev and a build artifact is produced.
+**Acceptance:** a blank Blink window launches in dev and a build artifact is produced.
 
 ---
 
@@ -93,32 +93,35 @@ persists settings, makes no network calls. **This is v1.**
 
 ---
 
-## Phase 7 — System tray (P1)
+## Phase 7 — System tray (P1) — done, iteration 2
 
-- [ ] `tray.rs`: tray icon + menu (Show/Hide, Start/Pause, Quit); tooltip shows remaining time.
-- [ ] Closing the main window minimizes to tray instead of quitting (configurable).
+- [x] `tray.rs`: tray icon + menu (Show/Hide, Start/Pause, Quit); tooltip shows remaining time.
+- [x] Closing the main window minimizes to tray instead of quitting (close-to-tray).
 
-**Acceptance:** the app lives in the tray and is controllable from it.
+**Acceptance:** the app lives in the tray and is controllable from it. ✅
 
 ---
 
-## Phase 8 — Global shortcut + autostart (P1)
+## Phase 8 — Global shortcut + autostart (P1) — done
 
-- [ ] `tauri-plugin-global-shortcut`: start/pause via a configurable hotkey; handle
-      "already registered" failure gracefully.
-- [ ] `tauri-plugin-autostart`: toggle in settings, off by default.
-- [ ] Always-on-top toggle for the main window.
+- [x] `tauri-plugin-global-shortcut`: `Ctrl+Shift+Space` toggles start/pause from
+      any app; registration failure (already in use) is caught and logged, never
+      crashes the app. Not user-remappable yet (fixed combo — see HANDOFF.md).
+- [x] `tauri-plugin-autostart`: "Launch on login" toggle in Settings, off by default.
+- [x] Always-on-top toggle for the main window (shipped in iteration 2).
 
 **Acceptance:** the hotkey toggles the timer from other apps; autostart works and is
-off by default.
+off by default. ✅
 
 ---
 
 ## Phase 9 — Polish + P2 (optional)
 
-- [ ] Minimal daily focus-block count (local only).
-- [ ] Multi-monitor blackout during rest.
-- [ ] Optional 20-20-20 micro-breaks.
+- [x] Minimal daily focus-block count + day streak (local only, `src/stats.ts`).
+- [x] Multi-monitor blackout during rest (shipped in iteration 2).
+- [x] Optional 20-20-20 micro-breaks (`src/microbreak.ts`, off by default).
+- [x] Optional guided breathing circle on the rest screen (off by default; scoped
+      exception to the "no rest-screen animation" rule — see `AI_RULES.md`).
 - [ ] Optional per-block task label; selectable chimes.
 
 **Acceptance:** each item ships behind its own setting without complicating the default,

@@ -1,4 +1,4 @@
-# AI_RULES.md — Lull
+# AI_RULES.md — Blink
 
 Hard rules for whoever (human or AI) builds this. These override convenience. When a
 rule blocks you, stop and log the conflict in `DEVLOG.md` rather than working around it.
@@ -39,6 +39,12 @@ rule blocks you, stop and log the conflict in `DEVLOG.md` rather than working ar
 - No gradients, drop shadows, glows, or heavy rounding. No emoji in the UI (use the
   icon font). Sentence/lowercase copy as specified — no ALL CAPS, no Title Case.
 - Keep the rest screen calm: no accent color, no animation beyond a quick fade.
+  **Scoped exception (2026-07-02, see DEVLOG.md):** an optional guided breathing
+  circle may animate on the rest screen, but only when the user has explicitly
+  opted in via Settings (`breathingCircleEnabled`, off by default), it never uses
+  the accent color, and it is fully removed (not just paused) under
+  `prefers-reduced-motion: reduce`. It does not appear during 20-20-20
+  micro-breaks (too short for a slow breathing cycle to read as calm).
 
 ## Correctness
 

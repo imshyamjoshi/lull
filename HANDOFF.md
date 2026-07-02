@@ -1,100 +1,114 @@
-# HANDOFF — Lull (pick up here)
+# HANDOFF — Blink (pick up here)
 
-Written 2026-07-01 at end of session. This is the running to-do so work can
-continue tomorrow (the user will use Claude chat, not Claude Code, so this file
+Written 2026-07-02 at end of session. This is the running to-do so work can
+continue later (the user may use Claude chat, not Claude Code, so this file
 must be self-explanatory). Newest context at top. Also read `DEVLOG.md` for the
 full history and `CLAUDE.md`/`PRD.md`/`UX_FLOWS.md`/`AI_RULES.md` for the rules.
 
 ## Where things stand
 
-- **P0 (v1) is complete and shipped**: focus/rest Pomodoro loop, fullscreen
-  black "look away" rest takeover, session cycle + long rest, persisted settings,
-  transition chime. Installers build (MSI + NSIS).
-- **Iteration 2 is done and pushed** (commit `f1ef6a7`): native Fluent look that
-  follows the Windows light/dark theme, real title bar, heavier text, Windows
-  accent color; editable HH:MM:SS on the home screen; multi-monitor rest blackout
-  (one black window per monitor); system tray (Show/Hide, Start/Pause, Quit,
-  tooltip, close-to-tray); always-on-top toggle.
-- **Repo**: https://github.com/imshyamjoshi/lull (main). Build/test commands and
-  file layout are in `README.md`.
-- Toolchain installed on this machine: Rust stable-msvc + VS Build Tools, Node.
+- **App renamed Lull → Blink.** Centralized in `APP_NAME` (`src/config.ts`) and
+  `productName`/`identifier` (`src-tauri/tauri.conf.json`, now
+  `com.shawn.blink`). Old saved settings won't carry over — expected, pre-release.
+- **P0 (v1) and P1 are both fully shipped**: focus/rest Pomodoro loop, fullscreen
+  black "look away" rest takeover (multi-monitor), session cycle + long rest,
+  persisted settings, transition chime, native Fluent theme, system tray,
+  always-on-top, **global shortcut (`Ctrl+Shift+Space`, fixed combo, with its
+  own on/off toggle in Settings — default on)**, and **autostart-on-login**
+  ("Launch on login" toggle in Settings).
+- **Home screen restructured**: preset chips (Classic/Deep Work/Short/Custom),
+  a compact short-rest/long-rest/blocks row, and a daily
+  focus-count-+-streak line all live on the idle home screen now. Settings
+  holds only behavior toggles + "Reset to defaults".
+- **Three P2 features shipped, all off by default**: 20-20-20 micro-breaks
+  (`src/microbreak.ts`), daily stats/streak (`src/stats.ts`), and an opt-in
+  guided breathing circle on the rest screen (a documented, scoped exception to
+  the "no rest-screen animation" rule in `AI_RULES.md`).
+- **Save-current-as-preset**: home screen presets now include user-saved
+  custom presets (`settings.customPresets`), addable via a "+ Save preset"
+  chip and deletable via a hover/focus-revealed × on each custom chip.
+- **App icon replaced**: was the unmodified default Tauri scaffold logo; now a
+  teal eye glyph on black matching the in-app icon (`src-tauri/icon-source.svg`
+  is the source of truth — regenerate with `npm run tauri icon
+  src-tauri/icon-source.svg`, then delete the `android/`/`ios/` folders it
+  also produces, since this is Windows-only).
+- **Repo**: https://github.com/imshyamjoshi/blink (main) — renamed from `lull`
+  this session via `gh repo rename`; GitHub keeps the old URL as a redirect,
+  local `origin` remote already points at the new URL.
+- Toolchain on this machine: Rust stable-msvc + VS Build Tools, Node — but
+  `cargo`/`rustc` aren't on PATH in this shell; invoke via
+  `"$env:USERPROFILE\.cargo\bin\cargo.exe"` in PowerShell.
 
-## Just fixed (in the latest commit made at end of session)
+## MANUAL VERIFICATION owed (this environment can't see a running window/GUI)
 
-- **Home-screen time arrows didn't repaint the box.** The refresh guard in
-  `src/main.ts` (`refreshEditor`) skipped updates whenever anything in the editor
-  had focus — including the arrow buttons. Now it only skips while a value field
-  is actively being *typed* in. Verify this works when you next run it.
+Full checklist for a human `npm run tauri dev` pass:
+- [ ] Preset chips: clicking one sets all 4 values and highlights correctly;
+  editing any value away from a preset switches the highlight to "Custom".
+- [ ] "+ Save preset": save current values under a name, confirm the new chip
+  appears and applies correctly; delete it via the × and confirm it's gone
+  and `customPresets` no longer has it after a restart.
+- [ ] New app icon shows correctly in the taskbar, title bar, tray, and Alt-Tab
+  switcher at real screen DPI (only checked as generated PNG files so far).
+- [ ] Rest-config row (short/long rest, blocks) on the home screen persists
+  and updates the session dots count live.
+- [ ] Settings panel now shows only toggles (no duration fields) — confirm
+  nothing got orphaned/broken in the panel layout.
+- [ ] `Ctrl+Shift+Space` toggles start/pause **from another app** (not focused
+  on Blink) while the "Global shortcut" Settings toggle is on. Also confirm
+  the app still launches fine if that combo is already taken by something
+  else (should log to stderr, not crash).
+- [ ] Turning the "Global shortcut" toggle off actually unregisters it
+  (pressing the combo afterward should do nothing); turning it back on
+  re-registers it without needing a restart.
+- [ ] "Launch on login" toggle actually adds/removes Blink from Windows
+  startup (check `shell:startup` or Task Manager > Startup apps) — this is the
+  one item that plausibly needs a real Windows session, not just a VM/CI box.
+- [ ] 20-20-20: enable in Settings, let a focus block run ~20 min (or
+  temporarily shrink `MICRO_BREAK_INTERVAL_MS` in `src/config.ts` to test
+  faster), confirm a brief fullscreen "look ~20 ft away" prompt appears, the
+  main focus countdown visibly pauses during it, and resumes correctly after
+  ~20s. Also test: manually resuming early ends it cleanly; `Reset` during one
+  doesn't leave an orphaned black window.
+- [ ] Daily stats line shows under the session dots and increments after a
+  completed focus block; streak text only shows once `streakDays > 0`.
+- [ ] Breathing circle: enable in Settings, confirm a faint pulsing glow on the
+  rest screen (short/long rest, not micro-breaks), confirm it's fully absent
+  when Windows "reduce motion" is on.
+- [ ] Tray, close-to-tray, hold-Esc-to-skip, multi-monitor blackout — all
+  previously verified-pending items from before this session, still open.
+- [ ] `npm run tauri build` — confirm it still produces MSI + NSIS installers
+  under the new name/identifier and check the size is still within `COST.md`
+  budgets (was 3.03 MB MSI / 1.94 MB NSIS before this session's additions).
+- [ ] Packet capture / `Get-NetTCPConnection` during a full cycle — still
+  expected zero, but re-confirm after adding two new plugins.
 
-## PENDING — do these next
+## PENDING — nice-to-haves, none blocking
 
-### 1. Home restructure (user-requested, agreed scope — just needs building)
-Goal: **all Pomodoro/timer configuration lives on the home screen; Settings holds
-only app-behavior toggles.**
-- Add **preset chips** on the home screen to quick-select a cycle. Suggested
-  presets (each sets focus / short rest / long rest / blocks-before-long):
-  - Classic 25 / 5 / 15 / 4
-  - Deep Work 50 / 10 / 20 / 3
-  - Short 15 / 3 / 15 / 4
-  - Custom (auto-selected when values match no preset)
-  Highlight the active preset; editing any duration switches to "Custom".
-- **Move OUT of Settings and onto the home screen** (visible when idle): short
-  rest, long rest, and "blocks before long rest" — e.g., a compact editable row
-  under the session dots. Focus duration is already the big HH:MM:SS editor.
-- **Settings should then contain only**: auto-start next block, rest screen
-  fullscreen, sound, notify at transitions, always on top, + "reset to defaults".
-- Files: `index.html` (add presets + rest-config row), `src/main.ts`
-  (`buildSettingsForm` → strip timer fields; add preset rendering + rest editors),
-  `src/styles.css` (chip styles). Settings model in `src/settings.ts` already
-  stores everything in **seconds** — no schema change needed.
-
-### 2. Rename the app (name not chosen yet)
-"Lull" is a placeholder the user dislikes. Candidates suggested: **Horizon,
-Blink, Eclipse, Respite** (user may pick another). Once chosen, change it in:
-- `src/config.ts` → `APP_NAME`
-- `src-tauri/tauri.conf.json` → `productName`, `identifier` (e.g.
-  `com.shawn.<name>`), and the `main` window `title`
-- `src-tauri/Cargo.toml` → `package.name` and `lib.name` (`<name>_lib`)
-- `src-tauri/src/main.rs` → `<name>_lib::run()`
-- `README.md` heading, and tray tooltip default "Lull" in `src/main.ts` /
-  `src-tauri/src/tray.rs`
-Note: changing `identifier` changes the settings storage path, so old saved
-settings won't carry over (fine pre-release).
-
-### 3. New features the user is considering (pick before building)
-Suggested list (all local/offline, no network per AI_RULES):
-- **20-20-20 micro-breaks** — every ~20 min of focus, a brief "look ~20 ft away
-  for 20 s" prompt layered on the cycle. Most on-brand for eye health.
-- **Daily stats & streak** — local count of focus blocks/time today + day streak.
-- **Guided breathing on the rest screen** — optional slow expand/contract circle.
-- **Finish P1: global shortcut (Ctrl+Shift+Space) + autostart on login** — the
-  remaining P1 items (plugins already noted in `ARCHITECTURE.md`:
-  `tauri-plugin-global-shortcut`, `tauri-plugin-autostart`).
-Other ideas parked: per-block task label, selectable chime sounds, gradual
-screen dim before a break, accent/theme override.
-
-### 4. Still-pending P1 (from BUILD_PLAN.md)
-- Global shortcut + autostart (see above). Always-on-top and tray are DONE.
-
-## MANUAL VERIFICATION still owed (can't be done without a real display)
-The assistant could not see the GUI/monitors. A human must confirm:
-- The Fluent theme in **both** Windows light and dark modes.
-- **Reset button** visible; the time **arrows now update the box** (just fixed).
-- `Esc` on the rest screen does NOT exit fullscreen; **hold Esc ~2s** skips.
-- The rest screen **blacks out every monitor** on a multi-display setup.
-- Tray icon + right-click menu; close-to-tray (X hides, Quit exits).
-- No network connections during a full cycle (packet capture / Get-NetTCPConnection).
+1. **User-remappable global shortcut.** Currently fixed at `Ctrl+Shift+Space`
+   in `src-tauri/src/lib.rs`. `PRD.md` originally said "configurable"; this
+   session shipped the fixed version as the smallest reasonable slice. A
+   rebind UI would need: a capture-field in Settings, JS-side
+   `@tauri-apps/plugin-global-shortcut` (not currently a dependency — only the
+   Rust crate is used today), unregister-then-reregister logic, and
+   persisting the chosen combo in `settings.ts`.
+2. **Stats midnight rollover while idle.** `src/stats.ts`'s "today" only
+   resets the next time a focus block completes, not exactly at midnight if
+   the app sits idle overnight. Documented as an accepted assumption in
+   `DEVLOG.md`; revisit if it bothers the user in practice.
+3. **Leftover P2 ideas** (never started): per-block task label, a couple of
+   selectable chime sounds.
+4. **GitHub repo rename** (`lull` → `blink`) — cosmetic, low priority, ask
+   before doing it since it changes the remote clone URL.
 
 ## How to build / test
+
 ```
 npm install
-npm test               # 20 unit tests (timer + state), Node's built-in runner
+npm test               # 40 unit tests (timer, state, microbreak, stats), Node's built-in runner
 npm run typecheck
 npm run tauri dev      # run the app
 npm run tauri build    # installers in src-tauri/target/release/bundle
 ```
 
-## Open questions for the user (answer to unblock)
-1. Final app name?
-2. Which of the features in section 3 to build (and how many)?
-3. Confirm the home/settings split in section 1 is exactly what you want.
+If `cargo`/`tauri` CLI aren't found in a fresh shell, they're at
+`%USERPROFILE%\.cargo\bin\` — either add that to PATH or invoke directly.

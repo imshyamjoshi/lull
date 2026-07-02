@@ -11,6 +11,7 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
+import { enable as enableAutostart, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
 
 import { TICK_MS, EVT, REST_WINDOW_PREFIX } from "./config.ts";
 import { icons } from "./icons.ts";
@@ -18,20 +19,36 @@ import { byId, setText, toggleClass } from "./dom.ts";
 import { createTicker, formatClock, splitHMS, hmsToMs } from "./timer.ts";
 import { reduce, initialState, type AppState, type AppEvent, type TimerConfig } from "./state.ts";
 import {
+  initMicroBreak,
+  enterFocus as microEnterFocus,
+  leaveFocus as microLeaveFocus,
+  cancel as microCancel,
+  reschedule as microReschedule,
+  isDue as microIsDue,
+  isElapsed as microIsElapsed,
+  begin as microBegin,
+  type MicroBreakState,
+} from "./microbreak.ts";
+import {
   loadSettings,
   saveSettings,
   normalize,
   toTimerConfig,
   DEFAULT_SETTINGS,
   type Settings,
+  type Preset,
 } from "./settings.ts";
 import { playChime } from "./audio.ts";
+import { loadStats, saveStats, recordFocusBlock, todayString, DEFAULT_STATS, type Stats } from "./stats.ts";
 
 // ---- elements ----
 const el = {
   phase: byId("phase"),
   digits: byId("digits"),
   editor: byId("editor"),
+  presets: byId("presets"),
+  restConfig: byId("restConfig"),
+  stats: byId("stats"),
   primary: byId<HTMLButtonElement>("primary"),
   primaryIco: byId("primaryIco"),
   primaryLabel: byId("primaryLabel"),
@@ -52,6 +69,13 @@ let state: AppState = initialState(cfg);
 let settingsOpen = false;
 let notifyGranted = false;
 let lastTooltip = "";
+let stats: Stats = { ...DEFAULT_STATS };
+
+// 20-20-20 micro-breaks: an independent, timestamp-driven sub-timer layered on
+// top of a running focus block (see microbreak.ts). A micro-break pauses/
+// resumes the real focus countdown via the existing PAUSE/RESUME events, so
+// "pause and extend" reuses already-tested drift-free reducer logic.
+let microBreak: MicroBreakState = initMicroBreak();
 
 const ticker = createTicker(onTick, TICK_MS);
 
@@ -71,15 +95,46 @@ function dispatch(event: AppEvent): void {
 function handleTransition(prevPhase: AppState["phase"], nextPhase: AppState["phase"]): void {
   const enteringRest = prevPhase !== "restRunning" && nextPhase === "restRunning";
   const leavingRest = prevPhase === "restRunning" && nextPhase !== "restRunning";
+  const enteringFocus = nextPhase === "focusRunning" && prevPhase !== "focusRunning";
+  const leavingFocus = prevPhase === "focusRunning" && nextPhase !== "focusRunning";
 
   if (enteringRest) {
     playChime(settings.sound);
     maybeNotify("Time to rest", "Look away and rest your eyes.");
-    void openRestWindows(state.isLongRest, state.targetEndAt ?? Date.now());
+    void openRestWindows({
+      isLongRest: state.isLongRest,
+      endAt: state.targetEndAt ?? Date.now(),
+      breathingCircleEnabled: settings.breathingCircleEnabled,
+    });
+    // A rest only follows a completed focus block (see FOCUS_COMPLETE in
+    // state.ts) — this is exactly the moment to record it.
+    stats = recordFocusBlock(stats, todayString(Date.now()), Math.round(cfg.focusMs / 1000));
+    void saveStats(stats);
+    renderStats();
   } else if (leavingRest) {
     playChime(settings.sound);
     void closeRestWindows();
     if (nextPhase === "focusRunning") maybeNotify("Back to focus", "Your break is over.");
+  }
+
+  if (enteringFocus) {
+    const wasActive = microBreak.active;
+    microBreak = microEnterFocus(microBreak, {
+      freshBlock: prevPhase === "idle",
+      enabled: settings.microBreaksEnabled,
+      now: Date.now(),
+    });
+    if (wasActive) void closeRestWindows();
+  } else if (leavingFocus) {
+    microBreak = microLeaveFocus(microBreak, Date.now());
+  }
+
+  // Defensive: RESET can jump focusPaused -> idle directly, bypassing the
+  // enteringFocus/leavingFocus branches above. Never leave an orphaned
+  // fullscreen micro-break window covering the screen.
+  if (nextPhase === "idle" && microBreak.active) {
+    microBreak = microCancel(microBreak);
+    void closeRestWindows();
   }
 }
 
@@ -91,16 +146,35 @@ function onTick(now: number): void {
     dispatch({ type: "FOCUS_COMPLETE" });
   } else if (state.phase === "restRunning" && state.msRemaining <= 0) {
     dispatch({ type: "REST_COMPLETE" });
+  } else if (state.phase === "focusRunning" && microIsDue(microBreak, now)) {
+    triggerMicroBreak(now);
+  } else if (microIsElapsed(microBreak, now)) {
+    dispatch({ type: "RESUME" });
   }
 }
 
-// ---- per-monitor rest windows (blackout on every screen) ----
+function triggerMicroBreak(now: number): void {
+  microBreak = microBegin(microBreak, now);
+  const endAt = microBreak.endsAt ?? now;
+  dispatch({ type: "PAUSE" });
+  void openRestWindows({ isLongRest: false, endAt, isMicroBreak: true });
+}
 
-let restPayload: { isLongRest: boolean; endAt: number } | null = null;
+// ---- per-monitor rest windows (blackout on every screen; also used for
+// 20-20-20 micro-breaks) ----
+
+interface RestPayload {
+  isLongRest: boolean;
+  endAt: number;
+  isMicroBreak?: boolean;
+  breathingCircleEnabled?: boolean;
+}
+
+let restPayload: RestPayload | null = null;
 let restLabels: string[] = [];
 
-async function openRestWindows(isLongRest: boolean, endAt: number): Promise<void> {
-  restPayload = { isLongRest, endAt };
+async function openRestWindows(payload: RestPayload): Promise<void> {
+  restPayload = payload;
   await closeRestWindows();
 
   let monitors: Monitor[] = [];
@@ -193,7 +267,7 @@ function updateTrayTooltip(): void {
   let text: string;
   switch (state.phase) {
     case "idle":
-      text = "Lull — ready";
+      text = "Blink — ready";
       break;
     case "focusRunning":
       text = `Focus — ${formatClock(state.msRemaining)}`;
@@ -224,6 +298,7 @@ function render(): void {
   renderClock();
   renderControls();
   renderDots();
+  renderStats();
 }
 
 function renderPhase(): void {
@@ -235,8 +310,12 @@ function renderClock(): void {
   const idle = state.phase === "idle";
   el.editor.hidden = !idle;
   el.digits.hidden = idle;
+  el.presets.hidden = !idle;
+  el.restConfig.hidden = !idle;
   if (idle) {
     refreshEditor();
+    renderPresets();
+    refreshRestConfig();
   } else {
     renderDigits();
   }
@@ -297,6 +376,16 @@ function renderDots(): void {
   el.dots.querySelectorAll<HTMLElement>(".dot").forEach((dot, i) => {
     toggleClass(dot, "is-done", i < done);
   });
+}
+
+function renderStats(): void {
+  const parts: string[] = [
+    `${stats.focusBlocksToday} block${stats.focusBlocksToday === 1 ? "" : "s"} today`,
+  ];
+  if (stats.streakDays > 0) {
+    parts.push(`${stats.streakDays} day${stats.streakDays === 1 ? "" : "s"} streak`);
+  }
+  setText(el.stats, parts.join(" · "));
 }
 
 // ---- home-screen H:M:S editor ----
@@ -408,6 +497,223 @@ async function commitEditorValues(h: number, m: number, s: number): Promise<void
   await applySettings(normalize({ ...settings, focusSeconds: seconds }));
 }
 
+// ---- home-screen presets (built-in + user-saved) ----
+
+const BUILT_IN_PRESETS: Preset[] = [
+  { id: "classic", label: "Classic", focusSeconds: 25 * 60, shortRestSeconds: 5 * 60, longRestSeconds: 15 * 60, blocksBeforeLongRest: 4 },
+  { id: "deep", label: "Deep Work", focusSeconds: 50 * 60, shortRestSeconds: 10 * 60, longRestSeconds: 20 * 60, blocksBeforeLongRest: 3 },
+  { id: "short", label: "Short", focusSeconds: 15 * 60, shortRestSeconds: 3 * 60, longRestSeconds: 15 * 60, blocksBeforeLongRest: 4 },
+];
+
+/** True while the inline "name this preset" form is open. Reset on save/cancel. */
+let addingPreset = false;
+
+function matchingPresetId(s: Settings): string | null {
+  const all: Preset[] = [...BUILT_IN_PRESETS, ...s.customPresets];
+  const p = all.find(
+    (p) =>
+      p.focusSeconds === s.focusSeconds &&
+      p.shortRestSeconds === s.shortRestSeconds &&
+      p.longRestSeconds === s.longRestSeconds &&
+      p.blocksBeforeLongRest === s.blocksBeforeLongRest,
+  );
+  return p ? p.id : null;
+}
+
+function applyPreset(p: Preset): void {
+  void applySettings(
+    normalize({
+      ...settings,
+      focusSeconds: p.focusSeconds,
+      shortRestSeconds: p.shortRestSeconds,
+      longRestSeconds: p.longRestSeconds,
+      blocksBeforeLongRest: p.blocksBeforeLongRest,
+    }),
+  );
+}
+
+function makePresetChip(label: string, isActive: boolean, onClick: () => void): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "chip";
+  btn.textContent = label;
+  toggleClass(btn, "is-active", isActive);
+  btn.addEventListener("click", onClick);
+  return btn;
+}
+
+function makeCustomPresetChip(p: Preset, isActive: boolean): HTMLElement {
+  const wrap = document.createElement("span");
+  wrap.className = "chip-wrap";
+  wrap.appendChild(makePresetChip(p.label, isActive, () => applyPreset(p)));
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "chip-remove";
+  remove.innerHTML = icons.x;
+  remove.setAttribute("aria-label", `Delete preset "${p.label}"`);
+  remove.addEventListener("click", (e) => {
+    e.stopPropagation();
+    void applySettings(
+      normalize({ ...settings, customPresets: settings.customPresets.filter((c) => c.id !== p.id) }),
+    );
+  });
+  wrap.appendChild(remove);
+  return wrap;
+}
+
+function saveCurrentAsPreset(label: string): void {
+  const trimmed = label.trim();
+  if (!trimmed) return;
+  const preset: Preset = {
+    id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    label: trimmed,
+    focusSeconds: settings.focusSeconds,
+    shortRestSeconds: settings.shortRestSeconds,
+    longRestSeconds: settings.longRestSeconds,
+    blocksBeforeLongRest: settings.blocksBeforeLongRest,
+  };
+  addingPreset = false;
+  void applySettings(normalize({ ...settings, customPresets: [...settings.customPresets, preset] }));
+}
+
+function buildAddPresetControl(): HTMLElement {
+  if (!addingPreset) {
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "chip chip-add";
+    add.textContent = "+ Save preset";
+    add.addEventListener("click", () => {
+      addingPreset = true;
+      renderPresets();
+    });
+    return add;
+  }
+
+  const form = document.createElement("span");
+  form.className = "preset-add-form";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "Preset name";
+  input.maxLength = 24;
+  input.setAttribute("aria-label", "New preset name");
+
+  const confirmBtn = document.createElement("button");
+  confirmBtn.type = "button";
+  confirmBtn.className = "icon-btn";
+  confirmBtn.innerHTML = icons.check;
+  confirmBtn.setAttribute("aria-label", "Save preset");
+  confirmBtn.addEventListener("click", () => saveCurrentAsPreset(input.value));
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "icon-btn";
+  cancelBtn.innerHTML = icons.x;
+  cancelBtn.setAttribute("aria-label", "Cancel");
+  cancelBtn.addEventListener("click", () => {
+    addingPreset = false;
+    renderPresets();
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveCurrentAsPreset(input.value);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      addingPreset = false;
+      renderPresets();
+    }
+  });
+
+  form.append(input, confirmBtn, cancelBtn);
+  queueMicrotask(() => input.focus());
+  return form;
+}
+
+function renderPresets(): void {
+  el.presets.replaceChildren();
+  const active = matchingPresetId(settings);
+
+  for (const p of BUILT_IN_PRESETS) {
+    el.presets.appendChild(makePresetChip(p.label, p.id === active, () => applyPreset(p)));
+  }
+  for (const p of settings.customPresets) {
+    el.presets.appendChild(makeCustomPresetChip(p, p.id === active));
+  }
+
+  const custom = document.createElement("button");
+  custom.type = "button";
+  custom.className = "chip chip-custom";
+  custom.textContent = "Custom";
+  custom.disabled = true;
+  toggleClass(custom, "is-active", active === null);
+  el.presets.appendChild(custom);
+
+  el.presets.appendChild(buildAddPresetControl());
+}
+
+// ---- home-screen rest configuration (short rest, long rest, blocks) ----
+
+const restConfigInputs = new Map<"shortRestSeconds" | "longRestSeconds", HTMLInputElement>();
+let restConfigBlocksInput: HTMLInputElement | null = null;
+
+function buildRestConfig(): void {
+  el.restConfig.replaceChildren();
+
+  const makeField = (label: string, build: () => HTMLInputElement): void => {
+    const field = document.createElement("div");
+    field.className = "rc-field";
+    const lab = document.createElement("label");
+    lab.textContent = label;
+    const input = build();
+    field.append(lab, input);
+    el.restConfig.appendChild(field);
+  };
+
+  makeField("short rest (min)", () => {
+    const input = makeNumberInput(0, 999);
+    input.setAttribute("aria-label", "Short rest minutes");
+    input.addEventListener("change", () => void commitRestMinutes("shortRestSeconds", input));
+    restConfigInputs.set("shortRestSeconds", input);
+    return input;
+  });
+
+  makeField("long rest (min)", () => {
+    const input = makeNumberInput(0, 999);
+    input.setAttribute("aria-label", "Long rest minutes");
+    input.addEventListener("change", () => void commitRestMinutes("longRestSeconds", input));
+    restConfigInputs.set("longRestSeconds", input);
+    return input;
+  });
+
+  makeField("blocks before long rest", () => {
+    const input = makeNumberInput(1, 12);
+    input.setAttribute("aria-label", "Blocks before long rest");
+    input.addEventListener("change", () => {
+      void applySettings(normalize({ ...settings, blocksBeforeLongRest: Number(input.value) }));
+    });
+    restConfigBlocksInput = input;
+    return input;
+  });
+}
+
+async function commitRestMinutes(
+  key: "shortRestSeconds" | "longRestSeconds",
+  input: HTMLInputElement,
+): Promise<void> {
+  const minutes = Math.max(0, Math.floor(Number(input.value) || 0));
+  await applySettings(normalize({ ...settings, [key]: Math.max(1, minutes * 60) }));
+}
+
+function refreshRestConfig(): void {
+  for (const [key, input] of restConfigInputs) {
+    input.value = String(Math.round(settings[key] / 60));
+  }
+  if (restConfigBlocksInput) restConfigBlocksInput.value = String(settings.blocksBeforeLongRest);
+}
+
 // ---- controls / keyboard ----
 
 function primaryAction(): void {
@@ -458,16 +764,8 @@ function wireKeyboard(): void {
   });
 }
 
-// ---- settings panel ----
-
-interface DurationField {
-  label: string;
-  key: "shortRestSeconds" | "longRestSeconds";
-}
-const DURATION_FIELDS: DurationField[] = [
-  { label: "Short rest", key: "shortRestSeconds" },
-  { label: "Long rest", key: "longRestSeconds" },
-];
+// ---- settings panel (behavior toggles only — timer/cycle config lives on the
+// home screen: presets, the H:M:S editor, and the rest-config row) ----
 
 const TOGGLE_FIELDS: { key: keyof Settings; label: string }[] = [
   { key: "autoStart", label: "Auto-start next block" },
@@ -475,10 +773,12 @@ const TOGGLE_FIELDS: { key: keyof Settings; label: string }[] = [
   { key: "sound", label: "Sound" },
   { key: "notify", label: "Notify at transitions" },
   { key: "alwaysOnTop", label: "Always on top" },
+  { key: "launchOnLogin", label: "Launch on login" },
+  { key: "globalShortcutEnabled", label: "Global shortcut (Ctrl+Shift+Space)" },
+  { key: "microBreaksEnabled", label: "20-20-20 micro-breaks" },
+  { key: "breathingCircleEnabled", label: "Breathing circle on rest" },
 ];
 
-const durationInputs = new Map<DurationField["key"], { min: HTMLInputElement; sec: HTMLInputElement }>();
-let blocksInput: HTMLInputElement | null = null;
 const toggleButtons = new Map<keyof Settings, HTMLButtonElement>();
 
 function makeNumberInput(min: number, max: number): HTMLInputElement {
@@ -492,52 +792,6 @@ function makeNumberInput(min: number, max: number): HTMLInputElement {
 
 function buildSettingsForm(): void {
   el.settingsList.replaceChildren();
-
-  for (const f of DURATION_FIELDS) {
-    const row = document.createElement("div");
-    row.className = "field";
-    const label = document.createElement("label");
-    label.textContent = f.label;
-
-    const inputs = document.createElement("div");
-    inputs.className = "field-inputs";
-    const min = makeNumberInput(0, 999);
-    const minSub = document.createElement("span");
-    minSub.className = "sub";
-    minSub.textContent = "min";
-    const sec = makeNumberInput(0, 59);
-    const secSub = document.createElement("span");
-    secSub.className = "sub";
-    secSub.textContent = "sec";
-    min.setAttribute("aria-label", `${f.label} minutes`);
-    sec.setAttribute("aria-label", `${f.label} seconds`);
-    min.addEventListener("change", () => void commitDuration(f.key));
-    sec.addEventListener("change", () => void commitDuration(f.key));
-
-    inputs.append(min, minSub, sec, secSub);
-    row.append(label, inputs);
-    el.settingsList.appendChild(row);
-    durationInputs.set(f.key, { min, sec });
-  }
-
-  // Blocks before long rest
-  {
-    const row = document.createElement("div");
-    row.className = "field";
-    const label = document.createElement("label");
-    label.textContent = "Blocks before long rest";
-    const input = makeNumberInput(1, 12);
-    input.setAttribute("aria-label", "Blocks before long rest");
-    input.addEventListener("change", () => {
-      void applySettings(normalize({ ...settings, blocksBeforeLongRest: Number(input.value) }));
-    });
-    const inputs = document.createElement("div");
-    inputs.className = "field-inputs";
-    inputs.appendChild(input);
-    row.append(label, inputs);
-    el.settingsList.appendChild(row);
-    blocksInput = input;
-  }
 
   for (const f of TOGGLE_FIELDS) {
     const row = document.createElement("div");
@@ -558,22 +812,7 @@ function buildSettingsForm(): void {
   }
 }
 
-async function commitDuration(key: DurationField["key"]): Promise<void> {
-  const pair = durationInputs.get(key);
-  if (!pair) return;
-  const mins = Math.max(0, Math.floor(Number(pair.min.value) || 0));
-  const secs = Math.max(0, Math.min(59, Math.floor(Number(pair.sec.value) || 0)));
-  const seconds = Math.max(1, mins * 60 + secs);
-  await applySettings(normalize({ ...settings, [key]: seconds }));
-}
-
 function refreshSettingsForm(): void {
-  for (const [key, pair] of durationInputs) {
-    const total = settings[key];
-    pair.min.value = String(Math.floor(total / 60));
-    pair.sec.value = String(total % 60);
-  }
-  if (blocksInput) blocksInput.value = String(settings.blocksBeforeLongRest);
   for (const [key, btn] of toggleButtons) {
     btn.setAttribute("aria-checked", String(settings[key] as boolean));
   }
@@ -581,19 +820,45 @@ function refreshSettingsForm(): void {
 
 async function applySettings(next: Settings): Promise<void> {
   const prevAlwaysOnTop = settings.alwaysOnTop;
+  const prevLaunchOnLogin = settings.launchOnLogin;
+  const prevGlobalShortcut = settings.globalShortcutEnabled;
   settings = await saveSettings(next);
   cfg = toTimerConfig(settings);
   // Mid-block changes apply to the next block; only refresh the idle readout.
   if (state.phase === "idle") state = { ...state, msRemaining: cfg.focusMs };
+  // Turning micro-breaks on mid-block schedules one now instead of waiting for
+  // the next block; turning off just stops scheduling new ones.
+  if (state.phase === "focusRunning") {
+    microBreak = microReschedule(microBreak, settings.microBreaksEnabled, Date.now());
+  }
   refreshSettingsForm();
   render();
   if (settings.notify) void ensureNotifyPermission();
   if (settings.alwaysOnTop !== prevAlwaysOnTop) void applyAlwaysOnTop();
+  if (settings.launchOnLogin !== prevLaunchOnLogin) void applyLaunchOnLogin();
+  if (settings.globalShortcutEnabled !== prevGlobalShortcut) void applyGlobalShortcut();
 }
 
 async function applyAlwaysOnTop(): Promise<void> {
   try {
     await getCurrentWindow().setAlwaysOnTop(settings.alwaysOnTop);
+  } catch {
+    /* noop */
+  }
+}
+
+async function applyGlobalShortcut(): Promise<void> {
+  try {
+    await invoke("set_global_shortcut_enabled", { enabled: settings.globalShortcutEnabled });
+  } catch {
+    /* noop */
+  }
+}
+
+async function applyLaunchOnLogin(): Promise<void> {
+  try {
+    if (settings.launchOnLogin) await enableAutostart();
+    else await disableAutostart();
   } catch {
     /* noop */
   }
@@ -614,10 +879,12 @@ function closeSettings(): void {
 
 async function boot(): Promise<void> {
   settings = await loadSettings();
+  stats = await loadStats();
   cfg = toTimerConfig(settings);
   state = initialState(cfg);
 
   buildEditor();
+  buildRestConfig();
   buildSettingsForm();
   refreshSettingsForm();
   wireControls();
@@ -625,15 +892,20 @@ async function boot(): Promise<void> {
 
   // Rest windows announce readiness; (re)send the current payload to them.
   await listen(EVT.restReady, () => {
-    if (state.phase === "restRunning" && restPayload) void emit(EVT.restBegin, restPayload);
+    const showing = state.phase === "restRunning" || microBreak.active;
+    if (showing && restPayload) void emit(EVT.restBegin, restPayload);
   });
   await listen(EVT.restSkip, () => {
-    if (state.phase === "restRunning") dispatch({ type: "SKIP_REST" });
+    if (microBreak.active) dispatch({ type: "RESUME" });
+    else if (state.phase === "restRunning") dispatch({ type: "SKIP_REST" });
   });
   await listen(EVT.trayToggle, () => primaryAction());
+  await listen(EVT.hotkeyToggle, () => primaryAction());
 
   if (settings.notify) void ensureNotifyPermission();
   void applyAlwaysOnTop();
+  void applyLaunchOnLogin();
+  void applyGlobalShortcut();
 
   render();
   ticker.start();

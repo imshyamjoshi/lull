@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lull</title>
+    <title>Blink</title>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
@@ -13,6 +13,8 @@
       </div>
 
       <main class="stage">
+        <div class="presets" id="presets" aria-label="Cycle presets"></div>
+
         <div class="readout">
           <div class="phase" id="phase">focus</div>
 
@@ -31,7 +33,11 @@
           </button>
         </div>
 
+        <div class="rest-config" id="restConfig" aria-label="Rest configuration"></div>
+
         <div class="dots" id="dots" aria-hidden="true"></div>
+
+        <div class="stats" id="stats" aria-live="off"></div>
       </main>
     </div>
 
